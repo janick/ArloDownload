@@ -1,40 +1,47 @@
 #!/usr/bin/python
 
-# ArloDownload - An Downloader for Surveillance Videos recorded by the Netgear Arlo System
-# Tobias Himstedt, himstedt@gmail.com
-#
-# This little script logins into the Netgear Arlo Web-Application in order to
-# download all videos which were recorded yesterday (resp. the day prior to the current date
-# when the script was started)
+# arlo_helper - A utility for the Netgear Arlo System
+##
+# Requirements:
 # This script requires the requests-package to be installed, see http://docs.python-requests.org/en/latest/
-# The script was developed using Python 2.7.6. It might run on newer version but it wasn't tested
 #
-# Do whatever you want with this script
-# No warranty, use at your own risk
+# Developer Notes:
+# Developed under Python 3.5
+# This script is open-source; please use and distribute as you wish.
+# There are no warranties; please use at your own risk.
+#
+# A very special 'thank you' goes to Tobias Himstedt for the original development of this utility.
+# The methods included in this utility were originally written by him and modified for my own usage.
+# I am happy to send Tobias' original upon request to my email address.
 
 import json
 import requests
-import time
 import datetime
 import shutil
 import os
 
-class ArloDownloader:
+author = {'Preston Lee','zettaiyukai@gmail.com'}
+version = '1.0'
+lastupdate = '10-20-2015'
+contributors = {'Tobias Himstedt','himstedt@gmail.com'}
 
+class arlo_helper:
     def __init__(self):
-        # Customize basePath to for the donwload directory
-        # Use the following line to download all files to userhome/ArloDownload
-        self.basePath = os.path.join( os.path.expanduser("~"), "ArloDownload" )
-        # or use any other directory
-        # self.basePath = "D:\Arlo"
-        # All directories in format YYYYmmdd, e.g. 20150715 will be removed after x days
-        self.deleteDownloadsOlderThan = 60 # days
-        # Deletion is only done if the following is True
-        self.deleteOldStuff = True
-        # Important: put in your Arlo credentials in here. Same as if you login on arlo.netgear.com
-        self.loginData = {"email":"Arlo_user_email_address", "password":"Arlo_password"}
-
-        # Below this point no customization should be necessary
+        # Define your Arlo credentials.
+        self.loginData = {"email":"EMAIL HERE", "password":"PWD HERE"}
+        # Define root directory for downloads.
+        self.downloadRoot = "DOWNLOAD DIR HERE"
+        # Cleanup switch; this must be set to "True" in order to use the cleaner module.
+        self.enableCleanup = False
+        # All directories in format YYYYMMDD, e.g. 20150715, will be removed after x days.
+        self.cleanIfOlderThan = 60
+        # Define camera common names by serial number.
+        self.cameras = {'SERIAL1':'camera_location1',
+                        'SERIAL2':'camera_location2',
+                        'SERIAL3':'camera_location3',
+                        'SERIAL4':'camera_location4',
+                        'SERIAL5':'camera_location5'}
+        # No customization of the following should be needed.
         self.loginUrl = "https://arlo.netgear.com/hmsweb/login"
         self.deviceUrl = "https://arlo.netgear.com/hmsweb/users/devices"
         self.metadataUrl = "https://arlo.netgear.com/hmsweb/users/library/metadata"
@@ -43,52 +50,53 @@ class ArloDownloader:
         self.session = requests.Session()
 
     def login(self):
-        response = self.session.post( self.loginUrl, data=json.dumps(self.loginData), headers=self.headers )
+        response = self.session.post(self.loginUrl, data=json.dumps(self.loginData), headers=self.headers )
         jsonResponseData = response.json()['data']
-        print "Login success"
-
+        print("Login success!")
         self.token = jsonResponseData['token']
-        self.deviceId = jsonResponseData['serialNumber']
-        self.userId = jsonResponseData['userId']
+        self.deviceID = jsonResponseData['serialNumber']
+        self.userID = jsonResponseData['userId']
         self.headers['Authorization'] = self.token
 
-    def getLibrary(self):
+    def readLibrary(self):
         self.today = datetime.date.today()
         yesterday = self.today - datetime.timedelta(days=1)
         self.ys = yesterday.strftime("%Y%m%d")
         params = {"dateFrom":self.ys, "dateTo":self.ys}
-        response = self.session.post( self.libraryUrl, data=json.dumps(params), headers=self.headers)
+        response = self.session.post(self.libraryUrl, data=json.dumps(params), headers=self.headers)
         self.library = response.json()['data']
 
-    def downloadLibray(self):
-        directory = os.path.join( self.basePath, self.ys)
+    def getLibrary(self):
+        directory = os.path.join(self.downloadRoot, self.ys)
         if not os.path.exists(directory):
             os.makedirs(directory)
         for item in self.library:
             url = item['presignedContentUrl']
-            name = os.path.join(directory, item['name'] + ".mp4")
-            if os.path.exists( name ):
-                print "File " +  name + " already exists, skipping download"
+            camera = str(self.cameras.get(item['deviceId']))
+            sec = int(item['name']) / 1000
+            timestamp = str(datetime.datetime.fromtimestamp(sec).strftime('%Y-%m-%d_%H%M%S'))
+            filename = os.path.join(directory, camera + "_" + timestamp + ".mp4")
+            if os.path.exists(filename):
+                print("File " +  filename + " already exists! Skipping download.")
             else:
-                print "Downloading " + name
+                print("Downloading " + filename)
                 response = self.session.get(url, stream=True)
-                with open(name, 'wb') as out_file:
+                with open(filename, 'wb') as out_file:
                     shutil.copyfileobj(response.raw, out_file)
                 del response
 
     def cleanup(self):
-        if not self.deleteOldStuff:
+        if not self.enableCleanup:
             return
-        older = self.today -  datetime.timedelta(days = self.deleteDownloadsOlderThan)
+        older = self.today - datetime.timedelta(days = self.cleanIfOlderThan)
         directoryToCheck = older.strftime("%Y%m%d")
-        removeDir = os.path.join(self.basePath, directoryToCheck)
-        print "Removing " + removeDir
-        if os.path.exists( removeDir ):
-            shutil.rmtree( removeDir )
+        removeDir = os.path.join(self.downloadRoot,directoryToCheck)
+        print("Removing " + removeDir)
+        if os.path.exists(removeDir):
+            shutil.rmtree(removeDir)
 
-
-ad = ArloDownloader()
-ad.login()
-ad.getLibrary()
-ad.downloadLibray()
-ad.cleanup()
+thisHelper = arlo_helper()
+thisHelper.login()
+thisHelper.readLibrary()
+thisHelper.getLibrary()
+print('Done!')
