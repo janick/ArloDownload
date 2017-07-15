@@ -20,6 +20,7 @@ import requests
 import datetime
 import shutil
 import os
+import pickle
 
 author = {'Janick Bergeron', 'janick@bergeron.com'}
 version = '2.0'
@@ -29,12 +30,23 @@ contributors = {'Tobias Himstedt','himstedt@gmail.com',
 config = configparser.ConfigParser()
 config.read('/etc/systemd/arlo.conf')
 
+rootdir = config['Default']['rootdir']
+if not os.path.exists(rootdir):
+    os.makedirs(rootdir)
+
+# Load the files we have already backed up
+dbname = os.path.join(rootdir, "saved.db")
+saved = {}
+if os.path.isfile(dbname):
+    saved = pickle.load(open(dbname, "rb"))
+    
+                        
 class arlo_helper:
     def __init__(self):
         # Define your Arlo credentials.
         self.loginData = {"email":config['arlo.netgear.com']['userid'], "password":config['arlo.netgear.com']['password']}
         # Define root directory for downloads.
-        self.downloadRoot = config['Default']['rootdir']
+        self.downloadRoot = rootdir
         # Cleanup switch; this must be set to "True" in order to use the cleaner module.
         self.enableCleanup = False
         # All directories in format YYYYMMDD, e.g. 20150715, will be removed after x days.
@@ -65,10 +77,10 @@ class arlo_helper:
 
     def readLibrary(self):
         self.today = datetime.date.today()
-        self.now = self.today.strftime("%Y%m%d")
-        yesterday = self.today - datetime.timedelta(days=1)
-        self.ys = yesterday.strftime("%Y%m%d")
-        params = {"dateFrom":self.ys, "dateTo":self.now}
+        now = self.today.strftime("%Y%m%d")
+        # A 7-day window ought to be enough to catch everything!
+        then = (self.today - datetime.timedelta(days=7)).strftime("%Y%m%d")
+        params = {"dateFrom":then, "dateTo":now}
         response = self.session.post(self.libraryUrl, data=json.dumps(params), headers=self.headers)
         self.library = response.json()['data']
 
@@ -77,20 +89,24 @@ class arlo_helper:
             url = item['presignedContentUrl']
             camera = str(self.cameras.get(item['deviceId']))
             sec = int(item['name']) / 1000
+
             date = str(datetime.datetime.fromtimestamp(sec).strftime('%Y-%m-%d'))
             time = str(datetime.datetime.fromtimestamp(sec).strftime('%H:%M:%S'))
             directory = os.path.join(self.downloadRoot, date, camera)
             if not os.path.exists(directory):
                 os.makedirs(directory)
             filename = os.path.join(directory, time + ".mp4")
-            if os.path.exists(filename):
-                print("File " +  filename + " already exists! Skipping download.")
+            # Did we already process this item?
+            tag = camera + item['name']
+            if tag in saved:
+                print("We already have processed " +  filename + "! Skipping download.")
             else:
                 print("Downloading " + filename)
                 response = self.session.get(url, stream=True)
                 with open(filename, 'wb') as out_file:
                     shutil.copyfileobj(response.raw, out_file)
                 del response
+            saved[tag] = self.today
 
     def cleanup(self):
         if not self.enableCleanup:
@@ -106,4 +122,8 @@ thisHelper = arlo_helper()
 thisHelper.login()
 thisHelper.readLibrary()
 thisHelper.getLibrary()
+
+# Save was we have done so far...
+pickle.dump(saved, open(dbname, "wb"))
+
 print('Done!')
