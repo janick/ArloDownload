@@ -65,22 +65,24 @@ class arlo_helper:
 
     def readLibrary(self):
         self.today = datetime.date.today()
+        self.now = self.today.strftime("%Y%m%d")
         yesterday = self.today - datetime.timedelta(days=1)
         self.ys = yesterday.strftime("%Y%m%d")
-        params = {"dateFrom":self.ys, "dateTo":self.ys}
+        params = {"dateFrom":self.ys, "dateTo":self.now}
         response = self.session.post(self.libraryUrl, data=json.dumps(params), headers=self.headers)
         self.library = response.json()['data']
 
     def getLibrary(self):
-        directory = os.path.join(self.downloadRoot, self.ys)
-        if not os.path.exists(directory):
-            os.makedirs(directory)
         for item in self.library:
             url = item['presignedContentUrl']
             camera = str(self.cameras.get(item['deviceId']))
             sec = int(item['name']) / 1000
-            timestamp = str(datetime.datetime.fromtimestamp(sec).strftime('%Y-%m-%d_%H%M%S'))
-            filename = os.path.join(directory, camera + "_" + timestamp + ".mp4")
+            date = str(datetime.datetime.fromtimestamp(sec).strftime('%Y-%m-%d'))
+            time = str(datetime.datetime.fromtimestamp(sec).strftime('%H:%M:%S'))
+            directory = os.path.join(self.downloadRoot, date, camera)
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            filename = os.path.join(directory, time + ".mp4")
             if os.path.exists(filename):
                 print("File " +  filename + " already exists! Skipping download.")
             else:
