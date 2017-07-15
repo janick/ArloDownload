@@ -43,8 +43,9 @@ if os.path.isfile(dbname):
     saved = pickle.load(open(dbname, "rb"))
 
 # Should really use backend object, one for local file, one for dropbox
-if 'dropbox.com' in config:
+if 'token' in config['dropbox.com']:
     backend = dropbox.Dropbox(config['dropbox.com']['token'])
+    print("Dropbox login!")
 
     
 class arlo_helper:
@@ -75,7 +76,7 @@ class arlo_helper:
     def login(self):
         response = self.session.post(self.loginUrl, data=json.dumps(self.loginData), headers=self.headers )
         jsonResponseData = response.json()['data']
-        print("Login success!")
+        print("Arlo login!")
         self.token = jsonResponseData['token']
         self.deviceID = jsonResponseData['serialNumber']
         self.userID = jsonResponseData['userId']
@@ -112,7 +113,7 @@ class arlo_helper:
                 print("Downloading " + filename)
                 response = self.session.get(url, stream=True)
                 # Should really use polymorphism here...
-                if 'dropbox.com' in config:
+                if 'token' in config['dropbox.com']:
                     backend.files_upload(response.raw.read(), "/" + relname)
                 else:
                     with open(filename, 'wb') as out_file:
