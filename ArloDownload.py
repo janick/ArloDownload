@@ -109,6 +109,11 @@ class arlo_helper:
             saved[tag] = self.today
 
     def cleanup(self):
+        # Remove the entries in the "saved" DB for files that are no longer available on the arlo server
+        for tag in saved:
+            if saved[tag] != self.today:
+                del saved[tag]
+                
         if not self.enableCleanup:
             return
         older = self.today - datetime.timedelta(days = self.cleanIfOlderThan)
