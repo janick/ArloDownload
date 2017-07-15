@@ -15,12 +15,14 @@
 # I am happy to send Tobias' original upon request to my email address.
 
 import configparser
-import json
-import requests
 import datetime
-import shutil
+import dropbox
+import json
 import os
 import pickle
+import requests
+import shutil
+
 
 author = {'Janick Bergeron', 'janick@bergeron.com'}
 version = '2.0'
@@ -39,8 +41,12 @@ dbname = os.path.join(rootdir, "saved.db")
 saved = {}
 if os.path.isfile(dbname):
     saved = pickle.load(open(dbname, "rb"))
+
+# Should really use backend object, one for local file, one for dropbox
+if 'dropbox.com' in config:
+    backend = dropbox.Dropbox(config['dropbox.com']['token'])
+
     
-                        
 class arlo_helper:
     def __init__(self):
         # Define your Arlo credentials.
@@ -96,6 +102,8 @@ class arlo_helper:
             if not os.path.exists(directory):
                 os.makedirs(directory)
             filename = os.path.join(directory, time + ".mp4")
+            relname = os.path.join(date, camera, time + ".mp4")
+            
             # Did we already process this item?
             tag = camera + item['name']
             if tag in saved:
@@ -103,9 +111,14 @@ class arlo_helper:
             else:
                 print("Downloading " + filename)
                 response = self.session.get(url, stream=True)
-                with open(filename, 'wb') as out_file:
-                    shutil.copyfileobj(response.raw, out_file)
+                # Should really use polymorphism here...
+                if 'dropbox.com' in config:
+                    backend.files_upload(response.raw.read(), "/" + relname)
+                else:
+                    with open(filename, 'wb') as out_file:
+                        shutil.copyfileobj(response.raw, out_file)
                 del response
+                
             saved[tag] = self.today
 
     def cleanup(self):
