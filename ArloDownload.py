@@ -14,33 +14,38 @@
 # The methods included in this utility were originally written by him and modified for my own usage.
 # I am happy to send Tobias' original upon request to my email address.
 
+import configparser
 import json
 import requests
 import datetime
 import shutil
 import os
 
-author = {'Preston Lee','zettaiyukai@gmail.com'}
-version = '1.0'
-lastupdate = '10-20-2015'
-contributors = {'Tobias Himstedt','himstedt@gmail.com'}
+author = {'Janick Bergeron', 'janick@bergeron.com'}
+version = '2.0'
+contributors = {'Tobias Himstedt','himstedt@gmail.com',
+                'Preston Lee','zettaiyukai@gmail.com'}
+
+config = configparser.ConfigParser()
+config.read('/etc/systemd/arlo.conf')
 
 class arlo_helper:
     def __init__(self):
         # Define your Arlo credentials.
-        self.loginData = {"email":"EMAIL HERE", "password":"PWD HERE"}
+        self.loginData = {"email":config['arlo.netgear.com']['userid'], "password":config['arlo.netgear.com']['password']}
         # Define root directory for downloads.
-        self.downloadRoot = "DOWNLOAD DIR HERE"
+        self.downloadRoot = config['Default']['rootdir']
         # Cleanup switch; this must be set to "True" in order to use the cleaner module.
         self.enableCleanup = False
         # All directories in format YYYYMMDD, e.g. 20150715, will be removed after x days.
         self.cleanIfOlderThan = 60
         # Define camera common names by serial number.
-        self.cameras = {'SERIAL1':'camera_location1',
-                        'SERIAL2':'camera_location2',
-                        'SERIAL3':'camera_location3',
-                        'SERIAL4':'camera_location4',
-                        'SERIAL5':'camera_location5'}
+        self.cameras = {}
+        for cameraNum in range (1, 10):
+            sectionName = "Camera.{}".format(cameraNum)
+            if sectionName in config:
+                self.cameras[config[sectionName]['serial']] = config[sectionName]['name']
+                
         # No customization of the following should be needed.
         self.loginUrl = "https://arlo.netgear.com/hmsweb/login"
         self.deviceUrl = "https://arlo.netgear.com/hmsweb/users/devices"
