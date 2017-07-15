@@ -100,8 +100,6 @@ class arlo_helper:
             date = str(datetime.datetime.fromtimestamp(sec).strftime('%Y-%m-%d'))
             time = str(datetime.datetime.fromtimestamp(sec).strftime('%H:%M:%S'))
             directory = os.path.join(self.downloadRoot, date, camera)
-            if not os.path.exists(directory):
-                os.makedirs(directory)
             filename = os.path.join(directory, time + ".mp4")
             relname = os.path.join(date, camera, time + ".mp4")
             
@@ -116,6 +114,8 @@ class arlo_helper:
                 if 'token' in config['dropbox.com']:
                     backend.files_upload(response.raw.read(), "/" + relname)
                 else:
+                    if not os.path.exists(directory):
+                        os.makedirs(directory)
                     with open(filename, 'wb') as out_file:
                         shutil.copyfileobj(response.raw, out_file)
                 del response
