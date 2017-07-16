@@ -2,7 +2,8 @@
 Installation instruction for Debian system
 
 Tested on (uname -a):
-   - Linux chip 4.4.13-ntc-mlc #1 SMP Tue Dec 6 21:38:00 UTC 2016 armv7l GNU/Linux
+   - Linux chip 4.4.13-ntc-mlc #1 SMP Tue Dec 6 21:38:00 UTC 2016 armv7l GNU/Linux (https://getchip.com/pages/chip)
+
 
 
 1. Install required packages

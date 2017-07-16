@@ -43,14 +43,14 @@ lock = os.path.join(rootdir, "ArloDownload.pid")
 if os.path.isfile(lock):
     pid = int(open(lock, 'r').read())
     if pid == 0:
-        print(lock + " file exists but connot be read. Assuming an instnce is already running. Exiting.")
+        print(lock + " file exists but connot be read. Assuming an instance is already running. Exiting.")
         sys.exit
         
     if psutil.pid_exists(pid):
         print("An instance is already running. Exiting.")
         sys.exit()
 
-# I guess something crash. Let's go ahead and claim this run!
+# I guess something crashed. Let's go ahead and claim this run!
 open(lock, 'w').write(str(os.getpid()))
             
 # Load the files we have already backed up

@@ -2,6 +2,20 @@ ArloDownload
 
 Automatically download new video recordings from Arlo
 
+Video files are backed up under the following pathname:
+
+      <rootdir>/YYYY-MM-DD/<camera>/HH:MM:SS+<duration>s.mp4
+
+where
+
+      rootdir       Name of the downloaded data directory, as configured, or Dropbox app folder
+      YYYY-MM-DD    Date the video was created
+      camera        Name of the camera, as configured
+      HH:MM:SS      Time (24hr) the video was created
+      duration      Total duration of the video, in seconds
+
+
+
 Originally developped by Tobias Himstedt <himstedt@gmail.com>
 Updated by Preston Lee <zettaiyukai@gmail.com>, Janick Bergeron <janick@bergeron.com>
 
