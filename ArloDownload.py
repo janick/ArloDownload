@@ -19,6 +19,7 @@
 # Master GIT repository: git@github.com:janick/ArloDownload.git
 #
 
+import argparse
 import configparser
 import datetime
 import dropbox
@@ -30,11 +31,21 @@ import requests
 import shutil
 import sys
 
+# Parse command-line options
+parser = argparse.ArgumentParser()
+# Make the debug mode default to avoid clobberring a runnign install
+parser.add_argument('-X', action='store_const', const=0, dest='debug', default=1, help='debug mode')
+parser.add_argument('-i', action='store_const', const=1, dest='init',  default=0, help='Initialize the pickle file')
+args = parser.parse_args()
+
 
 config = configparser.ConfigParser()
 config.read('/etc/systemd/arlo.conf')
 
 rootdir = config['Default']['rootdir']
+# In debug mode, do not interfere with the regular data files
+if args.debug:
+    rootdir = rootdir + ".debug"
 if not os.path.exists(rootdir):
     os.makedirs(rootdir)
 
@@ -137,17 +148,32 @@ class arlo_helper:
             
             # Did we already process this item?
             tag = camera + item['name']
-            saved[tag] = self.today
+            if args.init:
+                saved[tag] = self.today
+
             if tag in saved:
                 print("We already have processed " +  relname + "! Skipping download.")
             else:
 
                 # Should it be concatenated with the next video?
-                # Note: library is ordered
-                if 'concatgap' in config['Default'] and idx < nItems-1:
-                    pass
-                else:
-                    
+                # Note: library is ordered in reverse time order (newer first)
+                if 'concatgap' in config['Default']:
+                    startIdx = idx
+                    # Find out how far back we can go with the maximum concatenation gap between videos
+                    while (startIdx < nItems-1):
+                        startIdx = startIdx + 1
+                        prevSec = int(library[startIdx]['name']) / 1000
+                        gap = sec - prevSec - int(library[startIdx]['mediaDurationSecond'])
+                        if (gap > config['Default']['concatgap']):
+                            startIdx = idx
+                            break
+
+                    # If we found more than one video...
+                    if startIdx > idx:
+                        concatenate(library[idx:startIdx])
+
+                # Did we save it as part of concatenation?
+                if tag not in saved:
                     itemCount = itemCount + 1
                     print("Downloading " + relname)
                     response = self.session.get(url, stream=True)
@@ -159,13 +185,32 @@ class arlo_helper:
                             os.makedirs(directory)
                             with open(fullname, 'wb') as out_file:
                                 shutil.copyfileobj(response.raw, out_file)
-                                del response
+                                
+                    del response
 
             saved[tag] = self.today
             if itemCount % 25 == 0:
                 # Take a snapshot of what we have done so far, in case the script crashes...
                 pickle.dump(saved, open(dbname, "wb"))
 
+    def concatenate(self, videos):
+        print("Concatenating videos:")
+        for item in reversed(videos):
+            url = item['presignedContentUrl']
+            camera = str(self.cameras.get(item['deviceId']))
+            sec = int(item['name']) / 1000
+
+            date = str(datetime.datetime.fromtimestamp(sec).strftime('%Y-%m-%d'))
+            time = str(datetime.datetime.fromtimestamp(sec).strftime('%H:%M:%S'))
+            secs = item['mediaDurationSecond']
+            directory = os.path.join(self.downloadRoot, date, camera)
+            filename = time + "+" + str(secs) + "s.mp4"
+            fullname = os.path.join(directory, filename)
+            relname  = os.path.join(date, camera, filename)
+            
+            print("    " + relname)
+
+            
     def cleanup(self):
         # Remove the entries in the "saved" DB for files that are no longer available on the arlo server
         for tag in saved:
