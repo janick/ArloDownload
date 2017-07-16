@@ -1,0 +1,51 @@
+
+Installation instruction for Debian system
+
+Tested on (uname -a):
+   - Linux chip 4.4.13-ntc-mlc #1 SMP Tue Dec 6 21:38:00 UTC 2016 armv7l GNU/Linux
+
+
+1. Install required packages
+
+   % sudo apt install ssh
+   % sudo apt install git
+   % sudo apt install gcc
+   % sudo apt install python3.4
+   % apt install python3-pip
+   % python -m pip install urllib3 --upgrade
+
+2. Install dropbox Python SDK
+
+   % python -m pip install dropbox
+   
+3. Create Dropbox App
+
+   https://www.dropbox.com/developers/apps
+      1. Select "Dropbox API"
+      2. Select "App Folder"
+      3. Specify a name
+      4. Click <Create App>
+      5. Generate Access Token
+      6. Copy access token to arlo.conf file (see step #6)
+
+4. Clone the repository
+
+   % git clone git@github.com:janick/ArloDownload.git
+
+5. Configure ArloDownload
+
+   % sudo cp ArloDownload/arlo.conf /etc/systemd
+   % vi /etc/systemd/arlo.conf
+
+6. Test the configuration
+
+   % python ArloDownload/ArloDownload.py
+
+7. Optional: add entry in crontab file to download new videos every hour
+
+   % crontab -e
+   0 * * * * /usr/bin/python /full/path/to/ArloDownload.py >& /full/path/to/logfile
+   
+
+
+  

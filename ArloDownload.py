@@ -1,18 +1,23 @@
 #!/usr/bin/python
-
-# arlo_helper - A utility for the Netgear Arlo System
-##
-# Requirements:
-# This script requires the requests-package to be installed, see http://docs.python-requests.org/en/latest/
 #
-# Developer Notes:
-# Developed under Python 3.5
+# ArloDownload - A video backup utility for the Netgear Arlo System
+#
+# Version 2.0
+#
+# Contributors:
+#  Janick Bergeron <janick@bergeron.com>
+#  Preston Lee <zettaiyukai@gmail.com>
+#  Tobias Himstedt <himstedt@gmail.com>
+#
+# Requirements:
+#  Python 3
+#  Dropbox Python SDK
+#
 # This script is open-source; please use and distribute as you wish.
 # There are no warranties; please use at your own risk.
 #
-# A very special 'thank you' goes to Tobias Himstedt for the original development of this utility.
-# The methods included in this utility were originally written by him and modified for my own usage.
-# I am happy to send Tobias' original upon request to my email address.
+# Master GIT repository: git@github.com:janick/ArloDownload.git
+#
 
 import configparser
 import datetime
@@ -24,11 +29,6 @@ import requests
 import shutil
 import sys
 
-
-author = {'Janick Bergeron', 'janick@bergeron.com'}
-version = '2.0'
-contributors = {'Tobias Himstedt','himstedt@gmail.com',
-                'Preston Lee','zettaiyukai@gmail.com'}
 
 config = configparser.ConfigParser()
 config.read('/etc/systemd/arlo.conf')
@@ -163,7 +163,7 @@ thisHelper.login()
 thisHelper.readLibrary()
 thisHelper.getLibrary()
 
-# Save was we have done so far...
+# Save everything we have done so far...
 pickle.dump(saved, open(dbname, "wb"))
 
 print('Done!')
