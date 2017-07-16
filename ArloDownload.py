@@ -123,10 +123,10 @@ class arlo_helper:
             # Did we already process this item?
             tag = camera + item['name']
             if tag in saved:
-                print("We already have processed " +  filename + "! Skipping download.")
+                print("We already have processed " +  relname + "! Skipping download.")
             else:
                 itemCount = itemCount + 1
-                print("Downloading " + filename)
+                print("Downloading " + relname)
                 response = self.session.get(url, stream=True)
                 # Should really use polymorphism here...
                 if 'token' in config['dropbox.com']:
@@ -134,7 +134,7 @@ class arlo_helper:
                 else:
                     if not os.path.exists(directory):
                         os.makedirs(directory)
-                    with open(filename, 'wb') as out_file:
+                    with open(fullname, 'wb') as out_file:
                         shutil.copyfileobj(response.raw, out_file)
                 del response
 
