@@ -22,6 +22,7 @@ import os
 import pickle
 import requests
 import shutil
+import sys
 
 
 author = {'Janick Bergeron', 'janick@bergeron.com'}
@@ -36,6 +37,14 @@ rootdir = config['Default']['rootdir']
 if not os.path.exists(rootdir):
     os.makedirs(rootdir)
 
+# Check if another instance is already running
+lock = os.path.join(rootdir, "ArloDownload.pid")
+if os.path.isfile(lock):
+    print(lock + " already exists, exiting.")
+    sys.exit()
+
+open(lock, 'w').write(str(os.getpid()))
+            
 # Load the files we have already backed up
 dbname = os.path.join(rootdir, "saved.db")
 saved = {}
@@ -156,3 +165,5 @@ thisHelper.getLibrary()
 pickle.dump(saved, open(dbname, "wb"))
 
 print('Done!')
+
+os.unlink(lock)
