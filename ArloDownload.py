@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 # ArloDownload - A video backup utility for the Netgear Arlo System
 #
@@ -112,10 +112,17 @@ class arlo_helper:
         params = {"dateFrom":then, "dateTo":now}
         response = self.session.post(self.libraryUrl, data=json.dumps(params), headers=self.headers)
         self.library = response.json()['data']
-
-    def getLibrary(self):
-        itemCount = 0;
+        # Separate the videos in their different cameras
+        self.cameraLibs = {}
         for item in self.library:
+            if item['deviceId'] not in self.cameraLibs:
+                self.cameraLibs[item['deviceId']] = []
+            self.cameraLibs[item['deviceId']].append(item)
+
+    def getLibrary(self, library):
+        itemCount = 0;
+        nItems = len(library)
+        for idx, item in enumerate(library):
             url = item['presignedContentUrl']
             camera = str(self.cameras.get(item['deviceId']))
             sec = int(item['name']) / 1000
@@ -130,21 +137,29 @@ class arlo_helper:
             
             # Did we already process this item?
             tag = camera + item['name']
+            saved[tag] = self.today
             if tag in saved:
                 print("We already have processed " +  relname + "! Skipping download.")
             else:
-                itemCount = itemCount + 1
-                print("Downloading " + relname)
-                response = self.session.get(url, stream=True)
-                # Should really use polymorphism here...
-                if 'token' in config['dropbox.com']:
-                    backend.files_upload(response.raw.read(), "/" + relname)
+
+                # Should it be concatenated with the next video?
+                # Note: library is ordered
+                if 'concatgap' in config['Default'] and idx < nItems-1:
+                    pass
                 else:
-                    if not os.path.exists(directory):
-                        os.makedirs(directory)
-                    with open(fullname, 'wb') as out_file:
-                        shutil.copyfileobj(response.raw, out_file)
-                del response
+                    
+                    itemCount = itemCount + 1
+                    print("Downloading " + relname)
+                    response = self.session.get(url, stream=True)
+                    # Should really use polymorphism here...
+                    if 'token' in config['dropbox.com']:
+                        backend.files_upload(response.raw.read(), "/" + relname)
+                    else:
+                        if not os.path.exists(directory):
+                            os.makedirs(directory)
+                            with open(fullname, 'wb') as out_file:
+                                shutil.copyfileobj(response.raw, out_file)
+                                del response
 
             saved[tag] = self.today
             if itemCount % 25 == 0:
@@ -169,7 +184,8 @@ class arlo_helper:
 thisHelper = arlo_helper()
 thisHelper.login()
 thisHelper.readLibrary()
-thisHelper.getLibrary()
+for camera in thisHelper.cameraLibs:
+    thisHelper.getLibrary(thisHelper.cameraLibs[camera])
 
 # Save everything we have done so far...
 pickle.dump(saved, open(dbname, "wb"))

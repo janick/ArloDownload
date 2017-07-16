@@ -12,8 +12,9 @@ Tested on (uname -a):
    % sudo apt install git
    % sudo apt install python3.4
    % sudo apt install python3-pip
-   % sudo python -m pip install urllib3 --upgrade
-   % sudo python -m pip install psutil
+   % sudo python3 -m pip install urllib3 --upgrade
+   % sudo python3 -m pip install psutil
+   % sudo apt install ffmpeg
 
 2. Install dropbox Python SDK
 
