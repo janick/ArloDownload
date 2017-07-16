@@ -114,9 +114,11 @@ class arlo_helper:
 
             date = str(datetime.datetime.fromtimestamp(sec).strftime('%Y-%m-%d'))
             time = str(datetime.datetime.fromtimestamp(sec).strftime('%H:%M:%S'))
+            secs = item['mediaDurationSecond']
             directory = os.path.join(self.downloadRoot, date, camera)
-            filename = os.path.join(directory, time + ".mp4")
-            relname = os.path.join(date, camera, time + ".mp4")
+            filename = time + "+" + str(secs) + "s.mp4"
+            fullname = os.path.join(directory, filename)
+            relname  = os.path.join(date, camera, filename)
             
             # Did we already process this item?
             tag = camera + item['name']
