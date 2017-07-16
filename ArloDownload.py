@@ -25,6 +25,7 @@ import dropbox
 import json
 import os
 import pickle
+import psutil
 import requests
 import shutil
 import sys
@@ -40,9 +41,16 @@ if not os.path.exists(rootdir):
 # Check if another instance is already running
 lock = os.path.join(rootdir, "ArloDownload.pid")
 if os.path.isfile(lock):
-    print(lock + " already exists, exiting.")
-    sys.exit()
+    pid = int(open(lock, 'r').read())
+    if pid == 0:
+        print(lock + " file exists but connot be read. Assuming an instnce is already running. Exiting.")
+        sys.exit
+        
+    if psutil.pid_exists(pid):
+        print("An instance is already running. Exiting.")
+        sys.exit()
 
+# I guess something crash. Let's go ahead and claim this run!
 open(lock, 'w').write(str(os.getpid()))
             
 # Load the files we have already backed up

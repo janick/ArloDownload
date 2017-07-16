@@ -12,6 +12,7 @@ Tested on (uname -a):
    % sudo apt install python3.4
    % sudo apt install python3-pip
    % sudo python -m pip install urllib3 --upgrade
+   % sudo python -m pip install psutil
 
 2. Install dropbox Python SDK
 
