@@ -40,7 +40,12 @@ if not os.path.exists(rootdir):
 dbname = os.path.join(rootdir, "saved.db")
 saved = {}
 if os.path.isfile(dbname):
-    saved = pickle.load(open(dbname, "rb"))
+    try:
+        saved = pickle.load(open(dbname, "rb"))
+    except:
+        # File was corrupted. Worst that is going to happen is we'll re-fetch everything.
+        # Oh well...
+        pass
 
 # Should really use backend object, one for local file, one for dropbox
 if 'token' in config['dropbox.com']:
@@ -92,6 +97,7 @@ class arlo_helper:
         self.library = response.json()['data']
 
     def getLibrary(self):
+        itemCount = 0;
         for item in self.library:
             url = item['presignedContentUrl']
             camera = str(self.cameras.get(item['deviceId']))
@@ -108,6 +114,7 @@ class arlo_helper:
             if tag in saved:
                 print("We already have processed " +  filename + "! Skipping download.")
             else:
+                itemCount = itemCount + 1
                 print("Downloading " + filename)
                 response = self.session.get(url, stream=True)
                 # Should really use polymorphism here...
@@ -119,8 +126,11 @@ class arlo_helper:
                     with open(filename, 'wb') as out_file:
                         shutil.copyfileobj(response.raw, out_file)
                 del response
-                
+
             saved[tag] = self.today
+            if itemCount % 25 == 0:
+                # Take a snapshot of what we have done so far, in case the script crashes...
+                pickle.dump(saved, open(dbname, "wb"))
 
     def cleanup(self):
         # Remove the entries in the "saved" DB for files that are no longer available on the arlo server
