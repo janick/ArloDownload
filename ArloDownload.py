@@ -56,18 +56,36 @@ if os.path.isfile(dbname):
         # Oh well...
         pass
 
-# Should really use backend object, one for local file, one for dropbox
-if 'token' in config['dropbox.com']:
-    backend = dropbox.Dropbox(config['dropbox.com']['token'])
-    print("Dropbox login!")
+    
+class dropboxBackend:
+    def __init__(self):
+        self.backend = dropbox.Dropbox(config['dropbox.com']['token'])
+        print("Dropbox login!")
 
+    def backup(self, fromStream, todir, tofile):
+        path = os.path.join(todir, tofile)
+        print("Dropboxing " + path)
+        self.backend.files_upload(fromStream.read(), "/" + path)
+
+        
+class localBackend:
+    def __init__(self):
+        self.rootdir = rootdir
+
+    def backup(self, fromStream, todir, tofile):
+        path = os.path.join(self.rootdir, todir)
+        if not os.path.exists(path):
+            os.makedirs(path)
+        path = os.path.join(path, tofile)
+        print("Downloading " + path)
+        with open(path, 'wb') as out_file:
+            shutil.copyfileobj(fromStream, out_file)
+        
     
 class arlo_helper:
     def __init__(self):
         # Define your Arlo credentials.
         self.loginData = {"email":config['arlo.netgear.com']['userid'], "password":config['arlo.netgear.com']['password']}
-        # Define root directory for downloads.
-        self.downloadRoot = rootdir
         # Cleanup switch; this must be set to "True" in order to use the cleaner module.
         self.enableCleanup = False
         # All directories in format YYYYMMDD, e.g. 20150715, will be removed after x days.
@@ -78,6 +96,11 @@ class arlo_helper:
             sectionName = "Camera.{}".format(cameraNum)
             if sectionName in config:
                 self.cameras[config[sectionName]['serial']] = config[sectionName]['name']
+        # Which backend to use?
+        if 'token' in config['dropbox.com']:
+            self.backend = dropboxBackend()
+        else:
+            self.backend = localBackend()
                 
         # No customization of the following should be needed.
         self.loginUrl = "https://arlo.netgear.com/hmsweb/login"
@@ -115,28 +138,17 @@ class arlo_helper:
             date = str(datetime.datetime.fromtimestamp(sec).strftime('%Y-%m-%d'))
             time = str(datetime.datetime.fromtimestamp(sec).strftime('%H:%M:%S'))
             secs = item['mediaDurationSecond']
-            directory = os.path.join(self.downloadRoot, date, camera)
-            filename = time + "+" + str(secs) + "s.mp4"
-            fullname = os.path.join(directory, filename)
-            relname  = os.path.join(date, camera, filename)
+            todir = os.path.join(date, camera)
+            tofile = time + "+" + str(secs) + "s.mp4"
             
             # Did we already process this item?
             tag = camera + item['name']
             if tag in saved:
-                print("We already have processed " +  relname + "! Skipping download.")
+                print("We already have processed " +  todir + "/" + tofile + "! Skipping download.")
             else:
                 itemCount = itemCount + 1
-                print("Downloading " + relname)
                 response = self.session.get(url, stream=True)
-                # Should really use polymorphism here...
-                if 'token' in config['dropbox.com']:
-                    backend.files_upload(response.raw.read(), "/" + relname)
-                else:
-                    if not os.path.exists(directory):
-                        os.makedirs(directory)
-                    with open(fullname, 'wb') as out_file:
-                        shutil.copyfileobj(response.raw, out_file)
-                del response
+                self.backend.backup(response.raw, todir, tofile)
 
             saved[tag] = self.today
             if itemCount % 25 == 0:
