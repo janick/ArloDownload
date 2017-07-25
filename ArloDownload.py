@@ -162,8 +162,9 @@ class arlo_helper:
             self.cameraLibs[item['deviceId']].append(item)
 
     def getLibrary(self, library):
-        itemCount = 0;
+        itemCount = 0
         nItems = len(library)
+        lastConcat = 0
         for idx, item in enumerate(library):
             url = item['presignedContentUrl']
             camera = str(self.cameras.get(item['deviceId']))
@@ -186,7 +187,7 @@ class arlo_helper:
 
                 # Should it be concatenated with the next video?
                 # Note: library is ordered in reverse time order (newer first)
-                if item['deviceId'] in self.concatgap:
+                if idx > lastConcat and item['deviceId'] in self.concatgap:
                     startIdx = idx
                     lastSec  = sec
                     # Find out how far back we can go with the maximum concatenation gap between videos
@@ -202,15 +203,15 @@ class arlo_helper:
                     # If we found more than one video...
                     if startIdx-1 > idx:
                         self.concatenate(library[idx:startIdx])
+                        lastConcat = startIdx - 1
 
                 # Save the video unless it was saved as part of the concatenation
-                if tag not in saved:
-                    itemCount = itemCount + 1
-                    response = self.session.get(url, stream=True)
-                    self.backend.backup(response.raw, todir, tofile)
-                    del response
+                itemCount = itemCount + 1
+                response = self.session.get(url, stream=True)
+                self.backend.backup(response.raw, todir, tofile)
+                del response
 
-                    saved[tag] = today
+                saved[tag] = today
                     
             if itemCount % 25 == 0:
                 # Take a snapshot of what we have done so far, in case the script crashes...
