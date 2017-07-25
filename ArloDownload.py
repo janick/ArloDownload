@@ -36,7 +36,7 @@ today = datetime.date.today()
 
 # Parse command-line options
 parser = argparse.ArgumentParser()
-# Make the debug mode default to avoid clobberring a runnign install
+# Make the debug mode default to avoid clobberring a running install
 parser.add_argument('-X', action='store_const', const=0, dest='debug', default=1, help='debug mode')
 parser.add_argument('-i', action='store_const', const=1, dest='init',  default=0, help='Initialize the pickle file')
 args = parser.parse_args()
@@ -102,8 +102,9 @@ class localBackend:
             os.makedirs(path)
         path = os.path.join(path, tofile)
         print("Downloading " + path)
-        with open(path, 'wb') as out_file:
-            shutil.copyfileobj(fromStream, out_file)
+        if not args.debug:
+            with open(path, 'wb') as out_file:
+                shutil.copyfileobj(fromStream, out_file)
         
     
 class arlo_helper:
@@ -116,12 +117,15 @@ class arlo_helper:
         self.cleanIfOlderThan = 60
         # Define camera common names by serial number.
         self.cameras = {}
+        self.concatgap = {}
         for cameraNum in range (1, 10):
             sectionName = "Camera.{}".format(cameraNum)
             if sectionName in config:
                 self.cameras[config[sectionName]['serial']] = config[sectionName]['name']
+                if 'concatgap' in config[sectionName]:
+                    self.concatgap[config[sectionName]['serial']] = int(config[sectionName]['concatgap'])
         # Which backend to use?
-        if 'token' in config['dropbox.com']:
+        if not args.debug and 'dropbox.com' in config and 'token' in config['dropbox.com']:
             self.backend = dropboxBackend()
         else:
             self.backend = localBackend()
@@ -176,37 +180,38 @@ class arlo_helper:
             if args.init:
                 saved[tag] = today
 
-            if tag in saved:
+            if not args.debug and tag in saved:
                 print("We already have processed " +  todir + "/" + tofile + "! Skipping download.")
             else:
 
                 # Should it be concatenated with the next video?
                 # Note: library is ordered in reverse time order (newer first)
-                if 'concatgap' in config['Default']:
+                if item['deviceId'] in self.concatgap:
                     startIdx = idx
+                    lastSec  = sec
                     # Find out how far back we can go with the maximum concatenation gap between videos
                     while (startIdx < nItems-1):
                         startIdx = startIdx + 1
                         prevSec = int(library[startIdx]['name']) / 1000
-                        gap = sec - prevSec - int(library[startIdx]['mediaDurationSecond'])
-                        if (gap > config['Default']['concatgap']):
-                            startIdx = idx
+                        gap = lastSec - prevSec - int(library[startIdx]['mediaDurationSecond'])
+                        if (gap > self.concatgap[item['deviceId']]):
                             break
+                        
+                        lastSec = prevSec
 
                     # If we found more than one video...
-                    if startIdx > idx:
-                        concatenate(library[idx:startIdx])
+                    if startIdx-1 > idx:
+                        self.concatenate(library[idx:startIdx])
 
                 # Save the video unless it was saved as part of the concatenation
                 if tag not in saved:
                     itemCount = itemCount + 1
                     response = self.session.get(url, stream=True)
-                    itemCount = itemCount + 1
-                    response = self.session.get(url, stream=True)
                     self.backend.backup(response.raw, todir, tofile)
                     del response
 
-            saved[tag] = today
+                    saved[tag] = today
+                    
             if itemCount % 25 == 0:
                 # Take a snapshot of what we have done so far, in case the script crashes...
                 pickle.dump(saved, open(dbname, "wb"))
@@ -221,7 +226,7 @@ class arlo_helper:
             date = str(datetime.datetime.fromtimestamp(sec).strftime('%Y-%m-%d'))
             time = str(datetime.datetime.fromtimestamp(sec).strftime('%H:%M:%S'))
             secs = item['mediaDurationSecond']
-            directory = os.path.join(self.downloadRoot, date, camera)
+            directory = os.path.join(rootdir, date, camera)
             filename = time + "+" + str(secs) + "s.mp4"
             fullname = os.path.join(directory, filename)
             relname  = os.path.join(date, camera, filename)
