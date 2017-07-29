@@ -101,10 +101,11 @@ class localBackend:
         if not os.path.exists(path):
             os.makedirs(path)
         path = os.path.join(path, tofile)
-        print("Downloading " + path)
-        if not args.debug:
-            with open(path, 'wb') as out_file:
-                shutil.copyfileobj(fromStream, out_file)
+        if not os.path.exists(path):
+            print("Downloading " + path)
+            if not args.debug:
+                with open(path, 'wb') as out_file:
+                    shutil.copyfileobj(fromStream, out_file)
         
     
 class arlo_helper:
@@ -129,6 +130,7 @@ class arlo_helper:
             self.backend = dropboxBackend()
         else:
             self.backend = localBackend()
+        self.localSave = localBackend()
                 
         # No customization of the following should be needed.
         self.loginUrl = "https://arlo.netgear.com/hmsweb/login"
@@ -138,6 +140,28 @@ class arlo_helper:
         self.headers = {'Content-type': 'application/json', 'Accept': 'text/plain, application/json'}
         self.session = requests.Session()
 
+    # Return the tiemstamp, in seconds, of an Arlo video item
+    def getTimestampInSecs(self, item):
+        return int(item['name']) / 1000
+
+    # Return the output directory name corresponding to an Arlo video item
+    def getOutputDir(self, item):
+        camera = str(self.cameras[item['deviceId']])
+        date = str(datetime.datetime.fromtimestamp(self.getTimestampInSecs(item)).strftime('%Y-%m-%d'))
+        return os.path.join(date, camera)
+
+    # Return the output file name corresponding to an Arlo video item
+    def getOutputFile(self, item):
+        time = str(datetime.datetime.fromtimestamp(self.getTimestampInSecs(item)).strftime('%H:%M:%S'))
+        secs = item['mediaDurationSecond']
+        return time + "+" + str(secs) + "s.mp4"
+
+    # Return the unique tag corresponding to an Arlo video item
+    def getTag(self, item):
+        camera = str(self.cameras[item['deviceId']])
+        return camera + item['name']
+
+    
     def login(self):
         response = self.session.post(self.loginUrl, data=json.dumps(self.loginData), headers=self.headers )
         jsonResponseData = response.json()['data']
@@ -167,17 +191,11 @@ class arlo_helper:
         lastConcat = 0
         for idx, item in enumerate(library):
             url = item['presignedContentUrl']
-            camera = str(self.cameras.get(item['deviceId']))
-            sec = int(item['name']) / 1000
-
-            date = str(datetime.datetime.fromtimestamp(sec).strftime('%Y-%m-%d'))
-            time = str(datetime.datetime.fromtimestamp(sec).strftime('%H:%M:%S'))
-            secs = item['mediaDurationSecond']
-            todir = os.path.join(date, camera)
-            tofile = time + "+" + str(secs) + "s.mp4"
+            todir = self.getOutputDir(item)
+            tofile = self.getOutputFile(item)
             
             # Did we already process this item?
-            tag = camera + item['name']
+            tag = self.getTag(item)
             if args.init:
                 saved[tag] = today
 
@@ -189,11 +207,11 @@ class arlo_helper:
                 # Note: library is ordered in reverse time order (newer first)
                 if idx > lastConcat and item['deviceId'] in self.concatgap:
                     startIdx = idx
-                    lastSec  = sec
+                    lastSec  = self.getTimestampInSecs(item)
                     # Find out how far back we can go with the maximum concatenation gap between videos
                     while (startIdx < nItems-1):
                         startIdx = startIdx + 1
-                        prevSec = int(library[startIdx]['name']) / 1000
+                        prevSec = self.getTimestampInSecs(library[startIdx])
                         gap = lastSec - prevSec - int(library[startIdx]['mediaDurationSecond'])
                         if (gap > self.concatgap[item['deviceId']]):
                             break
@@ -221,16 +239,9 @@ class arlo_helper:
         print("Concatenating videos:")
         for item in reversed(videos):
             url = item['presignedContentUrl']
-            camera = str(self.cameras.get(item['deviceId']))
-            sec = int(item['name']) / 1000
-
-            date = str(datetime.datetime.fromtimestamp(sec).strftime('%Y-%m-%d'))
-            time = str(datetime.datetime.fromtimestamp(sec).strftime('%H:%M:%S'))
-            secs = item['mediaDurationSecond']
-            directory = os.path.join(rootdir, date, camera)
-            filename = time + "+" + str(secs) + "s.mp4"
-            fullname = os.path.join(directory, filename)
-            relname  = os.path.join(date, camera, filename)
+            directory = self.getOutputDir(item)
+            filename  = self.getOutputFile(item)
+            relname = os.path.join(directory, filename)
             
             print("    " + relname)
 
