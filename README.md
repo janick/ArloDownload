@@ -1,6 +1,7 @@
 ArloDownload
 
-Automatically download new video recordings from Arlo
+Automatically download new video recordings from Arlo to local file or Dropbox.
+Optionally concatenate videos that are close in time.
 
 Video files are backed up under the following pathname:
 
