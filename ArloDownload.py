@@ -103,9 +103,8 @@ class localBackend:
         path = os.path.join(path, tofile)
         if not os.path.exists(path):
             print("Downloading " + path)
-            if not args.debug:
-                with open(path, 'wb') as out_file:
-                    shutil.copyfileobj(fromStream, out_file)
+            with open(path, 'wb') as out_file:
+                shutil.copyfileobj(fromStream, out_file)
         
     
 class arlo_helper:
@@ -142,7 +141,7 @@ class arlo_helper:
 
     # Return the tiemstamp, in seconds, of an Arlo video item
     def getTimestampInSecs(self, item):
-        return int(item['name']) / 1000
+        return int(int(item['name']) / 1000)
 
     # Return the output directory name corresponding to an Arlo video item
     def getOutputDir(self, item):
@@ -236,15 +235,40 @@ class arlo_helper:
                 pickle.dump(saved, open(dbname, "wb"))
 
     def concatenate(self, videos):
+        # Clean up the concatenation working directory...
+        dirname = "ffmpeg.work";
+        workdir = os.path.join(rootdir, dirname);
+        if (os.path.exists(workdir)):
+            shutil.rmtree(workdir)
+        os.makedirs(workdir)
+
         print("Concatenating videos:")
+        flist = []
+        # Get the videos to concatenate locally
         for item in reversed(videos):
             url = item['presignedContentUrl']
-            directory = self.getOutputDir(item)
-            filename  = self.getOutputFile(item)
-            relname = os.path.join(directory, filename)
-            
-            print("    " + relname)
+            filename  = item['name']+".mp4"
+            print("    " + os.path.join(self.getOutputDir(item), self.getOutputFile(item)))
+            response = self.session.get(url, stream=True)
+            self.localSave.backup(response.raw, dirname, filename)
 
+            flist.append(filename)
+
+        # How long does the concatenated video cover?
+        # Remember, videos are in reverse order (most recent first)
+        totalSecs = self.getTimestampInSecs(videos[0]) - self.getTimestampInSecs(videos[-1]) + int(videos[0]['mediaDurationSecond'])
+        time = str(datetime.datetime.fromtimestamp(self.getTimestampInSecs(videos[-1])).strftime('%H:%M:%S'))
+        outfile = time + "+" + str(totalSecs) + "s.mp4"
+
+        # If concatenation fails, oh well....
+        if (1):
+            # Concatenate using ffmpeg...
+            os.system("cd " + workdir + "; ffmpeg -i 'concat:" + '|'.join(flist)+"' -c copy concat.mp4")
+            
+            # And finally, upload!
+            f = open(workdir+"/concat.mp4", "r")
+            self.backend.backup(f, self.getOutputDir(item[-1]), outfile)
+            close(f)
             
     def cleanup(self):
         # Remove the entries in the "saved" DB for files that are no longer available on the arlo server
