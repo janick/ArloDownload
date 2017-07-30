@@ -266,9 +266,9 @@ class arlo_helper:
             os.system("cd " + workdir + "; ffmpeg -i 'concat:" + '|'.join(flist)+"' -c copy concat.mp4")
             
             # And finally, upload!
-            f = open(workdir+"/concat.mp4", "r")
-            self.backend.backup(f, self.getOutputDir(item[-1]), outfile)
-            close(f)
+            f = open(workdir+"/concat.mp4", "rb")
+            self.backend.backup(f, self.getOutputDir(videos[-1]), outfile)
+            f.close()
             
     def cleanup(self):
         # Remove the entries in the "saved" DB for files that are no longer available on the arlo server
