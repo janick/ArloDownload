@@ -2,7 +2,7 @@
 #
 # ArloDownload - A video backup utility for the Netgear Arlo System
 #
-# Version 2.0
+# Version 2.1
 #
 # Contributors:
 #  Janick Bergeron <janick@bergeron.com>
@@ -261,7 +261,7 @@ class arlo_helper:
         outfile = time + "+" + str(totalSecs) + "s.mp4"
 
         # If concatenation fails, oh well....
-        if (1):
+        try:
             # Concatenate using ffmpeg...
             os.system("cd " + workdir + "; ffmpeg -i 'concat:" + '|'.join(flist)+"' -c copy concat.mp4")
             
@@ -269,6 +269,8 @@ class arlo_helper:
             f = open(workdir+"/concat.mp4", "rb")
             self.backend.backup(f, self.getOutputDir(videos[-1]), outfile)
             f.close()
+        except:
+            print("Something went wrong during concatenation...")
             
     def cleanup(self):
         # Remove the entries in the "saved" DB for files that are no longer available on the arlo server
