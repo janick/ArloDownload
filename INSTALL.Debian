@@ -2,7 +2,8 @@
 Installation instruction for Debian system
 
 Tested on (uname -a):
-   - Linux chip 4.4.13-ntc-mlc #1 SMP Tue Dec 6 21:38:00 UTC 2016 armv7l GNU/Linux
+   - Linux chip 4.4.13-ntc-mlc #1 SMP Tue Dec 6 21:38:00 UTC 2016 armv7l GNU/Linux (https://getchip.com/pages/chip)
+
 
 
 1. Install required packages
@@ -11,7 +12,9 @@ Tested on (uname -a):
    % sudo apt install git
    % sudo apt install python3.4
    % sudo apt install python3-pip
-   % sudo python -m pip install urllib3 --upgrade
+   % sudo python3 -m pip install urllib3 --upgrade
+   % sudo python3 -m pip install psutil
+   % sudo apt install ffmpeg
 
 2. Install dropbox Python SDK
 
@@ -38,12 +41,12 @@ Tested on (uname -a):
 
 6. Test the configuration
 
-   % python ArloDownload/ArloDownload.py
+   % python ArloDownload/ArloDownload.py -X
 
 7. Optional: add entry in crontab file to download new videos every hour
 
    % crontab -e
-   0 * * * * /usr/bin/python /full/path/to/ArloDownload.py >& /full/path/to/logfile
+   0 * * * * /usr/bin/python /full/path/to/ArloDownload.py -X >& /full/path/to/logfile
    
 
 

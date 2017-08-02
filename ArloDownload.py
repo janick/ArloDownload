@@ -1,8 +1,8 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 # ArloDownload - A video backup utility for the Netgear Arlo System
 #
-# Version 2.0
+# Version 3.0
 #
 # Contributors:
 #  Janick Bergeron <janick@bergeron.com>
@@ -19,32 +19,56 @@
 # Master GIT repository: git@github.com:janick/ArloDownload.git
 #
 
+import argparse
 import configparser
 import datetime
 import dropbox
 import json
 import os
 import pickle
+import psutil
 import requests
 import shutil
 import sys
+
+# Timestamp for this run
+today = datetime.date.today()
+
+# Parse command-line options
+parser = argparse.ArgumentParser()
+# Make the debug mode default to avoid clobberring a running install
+parser.add_argument('-X', action='store_const', const=0, dest='debug', default=1, help='debug mode')
+parser.add_argument('-i', action='store_const', const=1, dest='init',  default=0, help='Initialize the pickle file')
+args = parser.parse_args()
 
 
 config = configparser.ConfigParser()
 config.read('/etc/systemd/arlo.conf')
 
 rootdir = config['Default']['rootdir']
+# In debug mode, do not interfere with the regular data files
+if args.debug:
+    rootdir = rootdir + ".debug"
 if not os.path.exists(rootdir):
     os.makedirs(rootdir)
 
 # Check if another instance is already running
 lock = os.path.join(rootdir, "ArloDownload.pid")
 if os.path.isfile(lock):
-    print(lock + " already exists, exiting.")
-    sys.exit()
+    pid = int(open(lock, 'r').read())
+    if pid == 0:
+        print(lock + " file exists but connot be read. Assuming an instance is already running. Exiting.")
+        sys.exit
+        
+    if psutil.pid_exists(pid):
+        print("An instance is already running. Exiting.")
+        sys.exit()
 
+        
+# I guess something crashed. Let's go ahead and claim this run!
 open(lock, 'w').write(str(os.getpid()))
-            
+
+
 # Load the files we have already backed up
 dbname = os.path.join(rootdir, "saved.db")
 saved = {}
@@ -77,9 +101,10 @@ class localBackend:
         if not os.path.exists(path):
             os.makedirs(path)
         path = os.path.join(path, tofile)
-        print("Downloading " + path)
-        with open(path, 'wb') as out_file:
-            shutil.copyfileobj(fromStream, out_file)
+        if not os.path.exists(path):
+            print("Downloading " + path)
+            with open(path, 'wb') as out_file:
+                shutil.copyfileobj(fromStream, out_file)
         
     
 class arlo_helper:
@@ -92,15 +117,19 @@ class arlo_helper:
         self.cleanIfOlderThan = 60
         # Define camera common names by serial number.
         self.cameras = {}
+        self.concatgap = {}
         for cameraNum in range (1, 10):
             sectionName = "Camera.{}".format(cameraNum)
             if sectionName in config:
                 self.cameras[config[sectionName]['serial']] = config[sectionName]['name']
+                if 'concatgap' in config[sectionName]:
+                    self.concatgap[config[sectionName]['serial']] = int(config[sectionName]['concatgap'])
         # Which backend to use?
-        if 'token' in config['dropbox.com']:
+        if not args.debug and 'dropbox.com' in config and 'token' in config['dropbox.com']:
             self.backend = dropboxBackend()
         else:
             self.backend = localBackend()
+        self.localSave = localBackend()
                 
         # No customization of the following should be needed.
         self.loginUrl = "https://arlo.netgear.com/hmsweb/login"
@@ -110,6 +139,28 @@ class arlo_helper:
         self.headers = {'Content-type': 'application/json', 'Accept': 'text/plain, application/json'}
         self.session = requests.Session()
 
+    # Return the tiemstamp, in seconds, of an Arlo video item
+    def getTimestampInSecs(self, item):
+        return int(int(item['name']) / 1000)
+
+    # Return the output directory name corresponding to an Arlo video item
+    def getOutputDir(self, item):
+        camera = str(self.cameras[item['deviceId']])
+        date = str(datetime.datetime.fromtimestamp(self.getTimestampInSecs(item)).strftime('%Y-%m-%d'))
+        return os.path.join(date, camera)
+
+    # Return the output file name corresponding to an Arlo video item
+    def getOutputFile(self, item):
+        time = str(datetime.datetime.fromtimestamp(self.getTimestampInSecs(item)).strftime('%H:%M:%S'))
+        secs = item['mediaDurationSecond']
+        return time + "+" + str(secs) + "s.mp4"
+
+    # Return the unique tag corresponding to an Arlo video item
+    def getTag(self, item):
+        camera = str(self.cameras[item['deviceId']])
+        return camera + item['name']
+
+    
     def login(self):
         response = self.session.post(self.loginUrl, data=json.dumps(self.loginData), headers=self.headers )
         jsonResponseData = response.json()['data']
@@ -120,50 +171,121 @@ class arlo_helper:
         self.headers['Authorization'] = self.token
 
     def readLibrary(self):
-        self.today = datetime.date.today()
-        now = self.today.strftime("%Y%m%d")
+        now = today.strftime("%Y%m%d")
         # A 7-day window ought to be enough to catch everything!
-        then = (self.today - datetime.timedelta(days=7)).strftime("%Y%m%d")
+        then = (today - datetime.timedelta(days=7)).strftime("%Y%m%d")
         params = {"dateFrom":then, "dateTo":now}
         response = self.session.post(self.libraryUrl, data=json.dumps(params), headers=self.headers)
         self.library = response.json()['data']
-
-    def getLibrary(self):
-        itemCount = 0;
+        # Separate the videos in their different cameras
+        self.cameraLibs = {}
         for item in self.library:
-            url = item['presignedContentUrl']
-            camera = str(self.cameras.get(item['deviceId']))
-            sec = int(item['name']) / 1000
+            if item['deviceId'] in self.cameras:
+                if item['deviceId'] not in self.cameraLibs:
+                    self.cameraLibs[item['deviceId']] = []
+                self.cameraLibs[item['deviceId']].append(item)
 
-            date = str(datetime.datetime.fromtimestamp(sec).strftime('%Y-%m-%d'))
-            time = str(datetime.datetime.fromtimestamp(sec).strftime('%H:%M:%S'))
-            secs = item['mediaDurationSecond']
-            todir = os.path.join(date, camera)
-            tofile = time + "+" + str(secs) + "s.mp4"
+    def getLibrary(self, library):
+        itemCount = 0
+        nItems = len(library)
+        lastConcat = 0
+        for idx, item in enumerate(library):
+            url = item['presignedContentUrl']
+            todir = self.getOutputDir(item)
+            tofile = self.getOutputFile(item)
             
             # Did we already process this item?
-            tag = camera + item['name']
-            if tag in saved:
+            tag = self.getTag(item)
+            if args.init:
+                saved[tag] = today
+
+            if not args.debug and tag in saved:
                 print("We already have processed " +  todir + "/" + tofile + "! Skipping download.")
             else:
+
+                # Should it be concatenated with the next video?
+                # Note: library is ordered in reverse time order (newer first)
+                if idx > lastConcat and item['deviceId'] in self.concatgap:
+                    startIdx = idx
+                    lastSec  = self.getTimestampInSecs(item)
+                    # Find out how far back we can go with the maximum concatenation gap between videos
+                    while (startIdx < nItems-1):
+                        startIdx = startIdx + 1
+                        prevSec = self.getTimestampInSecs(library[startIdx])
+                        gap = lastSec - prevSec - int(library[startIdx]['mediaDurationSecond'])
+                        if (gap > self.concatgap[item['deviceId']]):
+                            break
+                        
+                        lastSec = prevSec
+
+                    # If we found more than one video...
+                    if startIdx-1 > idx:
+                        self.concatenate(library[idx:startIdx])
+                        lastConcat = startIdx - 1
+
+                # Save the video unless it was saved as part of the concatenation
                 itemCount = itemCount + 1
                 response = self.session.get(url, stream=True)
                 self.backend.backup(response.raw, todir, tofile)
+                del response
 
-            saved[tag] = self.today
+                saved[tag] = today
+                    
             if itemCount % 25 == 0:
                 # Take a snapshot of what we have done so far, in case the script crashes...
                 pickle.dump(saved, open(dbname, "wb"))
 
+    def concatenate(self, videos):
+        # Clean up the concatenation working directory...
+        dirname = "ffmpeg.work";
+        workdir = os.path.join(rootdir, dirname);
+        if (os.path.exists(workdir)):
+            shutil.rmtree(workdir)
+        os.makedirs(workdir)
+
+        print("Concatenating videos:")
+        flist = []
+        # Get the videos to concatenate locally
+        for item in reversed(videos):
+            url = item['presignedContentUrl']
+            filename  = item['name']+".mp4"
+            print("    " + os.path.join(self.getOutputDir(item), self.getOutputFile(item)))
+            response = self.session.get(url, stream=True)
+            self.localSave.backup(response.raw, dirname, filename)
+
+            flist.append(filename)
+
+        # How long does the concatenated video cover?
+        # Remember, videos are in reverse order (most recent first)
+        totalSecs = self.getTimestampInSecs(videos[0]) - self.getTimestampInSecs(videos[-1]) + int(videos[0]['mediaDurationSecond'])
+        time = str(datetime.datetime.fromtimestamp(self.getTimestampInSecs(videos[-1])).strftime('%H:%M:%S'))
+        outfile = time + "+" + str(totalSecs) + "s.mp4"
+
+        # If concatenation fails, oh well....
+        try:
+            # First, convert the MP4 into something that can be concatenated
+            for mp4 in (flist):
+                os.system("cd " + workdir + "; ffmpeg -i " + mp4 + " -c copy -bsf:v h264_mp4toannexb -f mpegts " + mp4 + ".ts")
+                
+            # Concatenate using ffmpeg...
+            os.system("cd " + workdir + "; ffmpeg -i 'concat:" + '.ts|'.join(flist)+".ts' -c copy -bsf:a aac_adtstoasc concat.mp4")
+            
+            # And finally, upload!
+            f = open(workdir+"/concat.mp4", "rb")
+            self.backend.backup(f, self.getOutputDir(videos[-1]), outfile)
+            f.close()
+        except:
+            print("Something went wrong during concatenation...")
+            
     def cleanup(self):
         # Remove the entries in the "saved" DB for files that are no longer available on the arlo server
         for tag in saved:
-            if saved[tag] != self.today:
+            if saved[tag] != today:
                 del saved[tag]
                 
         if not self.enableCleanup:
             return
-        older = self.today - datetime.timedelta(days = self.cleanIfOlderThan)
+        older = today - datetime.timedelta(days = self.cleanIfOlderThan)
         directoryToCheck = older.strftime("%Y%m%d")
         removeDir = os.path.join(self.downloadRoot,directoryToCheck)
         print("Removing " + removeDir)
@@ -173,7 +295,8 @@ class arlo_helper:
 thisHelper = arlo_helper()
 thisHelper.login()
 thisHelper.readLibrary()
-thisHelper.getLibrary()
+for camera in thisHelper.cameraLibs:
+    thisHelper.getLibrary(thisHelper.cameraLibs[camera])
 
 # Save everything we have done so far...
 pickle.dump(saved, open(dbname, "wb"))
