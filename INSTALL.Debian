@@ -46,7 +46,7 @@ Tested on (uname -a):
 7. Optional: add entry in crontab file to download new videos every hour
 
    % crontab -e
-   0 * * * * /usr/bin/python /full/path/to/ArloDownload.py >& /full/path/to/logfile
+   0 * * * * /usr/bin/python /full/path/to/ArloDownload.py -X >& /full/path/to/logfile
    
 
 
