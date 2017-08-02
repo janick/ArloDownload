@@ -180,9 +180,10 @@ class arlo_helper:
         # Separate the videos in their different cameras
         self.cameraLibs = {}
         for item in self.library:
-            if item['deviceId'] not in self.cameraLibs:
-                self.cameraLibs[item['deviceId']] = []
-            self.cameraLibs[item['deviceId']].append(item)
+            if item['deviceId'] in self.cameras:
+                if item['deviceId'] not in self.cameraLibs:
+                    self.cameraLibs[item['deviceId']] = []
+                self.cameraLibs[item['deviceId']].append(item)
 
     def getLibrary(self, library):
         itemCount = 0
@@ -262,8 +263,12 @@ class arlo_helper:
 
         # If concatenation fails, oh well....
         try:
+            # First, convert the MP4 into something that can be concatenated
+            for mp4 in (flist):
+                os.system("cd " + workdir + "; ffmpeg -i " + mp4 + " -c copy -bsf:v h264_mp4toannexb -f mpegts " + mp4 + ".ts")
+                
             # Concatenate using ffmpeg...
-            os.system("cd " + workdir + "; ffmpeg -i 'concat:" + '|'.join(flist)+"' -c copy concat.mp4")
+            os.system("cd " + workdir + "; ffmpeg -i 'concat:" + '.ts|'.join(flist)+".ts' -c copy -bsf:a aac_adtstoasc concat.mp4")
             
             # And finally, upload!
             f = open(workdir+"/concat.mp4", "rb")
