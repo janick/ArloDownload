@@ -157,7 +157,7 @@ class arlo_helper:
 
     # Return the unique tag corresponding to an Arlo video item
     def getTag(self, item):
-        camera = str(self.cameras[item['deviceId']])
+        camera = item['deviceId']
         return camera + item['name']
 
     
