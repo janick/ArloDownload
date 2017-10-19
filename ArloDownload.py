@@ -75,9 +75,7 @@ if os.path.isfile(lock):
             sys.exit()
         # We can proceed and claim this run as our own...
 
-print ("Proceeding...");
-sys.exit()
-        
+
 # I guess something crashed. Let's go ahead and claim this run!
 open(lock, 'w').write(str(os.getpid()))
 
