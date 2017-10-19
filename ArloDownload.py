@@ -28,8 +28,10 @@ import os
 import pickle
 import psutil
 import requests
+import signal
 import shutil
 import sys
+import time
 
 # Timestamp for this run
 today = datetime.date.today()
@@ -61,9 +63,20 @@ if os.path.isfile(lock):
         sys.exit
         
     if psutil.pid_exists(pid):
-        print("An instance is already running. Exiting.")
-        sys.exit()
+        # if the lock file is more than a few hours old, we got ourselves something hung...
+        if ((time.time() - os.path.getmtime(lock)) < 60*60*6):
+            print("An instance is already running. Exiting.")
+            sys.exit()
+        print("Process " + str(pid) + " appears stuck. Killing it.")
+        os.kill(pid, signal.SIGTERM);
+        sleep(1)
+        if psutil.pid_exists(pid):
+            print("ERROR: Unable to kill hung process. Exiting.")
+            sys.exit()
+        # We can proceed and claim this run as our own...
 
+print ("Proceeding...");
+sys.exit()
         
 # I guess something crashed. Let's go ahead and claim this run!
 open(lock, 'w').write(str(os.getpid()))
