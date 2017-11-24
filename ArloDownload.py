@@ -157,8 +157,9 @@ class arlo_helper:
     # Return the output directory name corresponding to an Arlo video item
     def getOutputDir(self, item):
         camera = str(self.cameras[item['deviceId']])
-        date = str(datetime.datetime.fromtimestamp(self.getTimestampInSecs(item)).strftime('%Y-%m-%d'))
-        return os.path.join(date, camera)
+        month  = str(datetime.datetime.fromtimestamp(self.getTimestampInSecs(item)).strftime('%Y-%m'))
+        date   = str(datetime.datetime.fromtimestamp(self.getTimestampInSecs(item)).strftime('%Y-%m-%d'))
+        return os.path.join(month, date, camera)
 
     # Return the output file name corresponding to an Arlo video item
     def getOutputFile(self, item):

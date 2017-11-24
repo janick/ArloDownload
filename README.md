@@ -5,11 +5,12 @@ Optionally concatenate videos that are close in time.
 
 Video files are backed up under the following pathname:
 
-      <rootdir>/YYYY-MM-DD/<camera>/HH:MM:SS+<duration>s.mp4
+      <rootdir>/YYYY-MM/YYYY-MM-DD/<camera>/HH:MM:SS+<duration>s.mp4
 
 where
 
       rootdir       Name of the downloaded data directory, as configured, or Dropbox app folder
+      YYYY-MM       Month the video was created
       YYYY-MM-DD    Date the video was created
       camera        Name of the camera, as configured
       HH:MM:SS      Time (24hr) the video was created
