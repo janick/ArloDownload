@@ -129,12 +129,17 @@ class arlo_helper:
         # Define camera common names by serial number.
         self.cameras = {}
         self.concatgap = {}
+        self.deleteAfterDays = {}
         for cameraNum in range (1, 10):
             sectionName = "Camera.{}".format(cameraNum)
             if sectionName in config:
                 self.cameras[config[sectionName]['serial']] = config[sectionName]['name']
                 if 'concatgap' in config[sectionName]:
                     self.concatgap[config[sectionName]['serial']] = int(config[sectionName]['concatgap'])
+                if 'keep' in config[sectionName]:
+                    self.deleteAfterDays[config[sectionName]['serial']] = int(config[sectionName]['keep'])
+                else:
+                    self.deleteAfterDays[config[sectionName]['serial']] = 99
         # Which backend to use?
         if not args.debug and 'dropbox.com' in config and 'token' in config['dropbox.com']:
             self.backend = dropboxBackend()
@@ -188,6 +193,7 @@ class arlo_helper:
         then = (today - datetime.timedelta(days=7)).strftime("%Y%m%d")
         params = {"dateFrom":then, "dateTo":now}
         response = self.session.post(self.libraryUrl, data=json.dumps(params), headers=self.headers)
+        
         self.library = response.json()['data']
         # Separate the videos in their different cameras
         self.cameraLibs = {}
@@ -197,7 +203,10 @@ class arlo_helper:
                     self.cameraLibs[item['deviceId']] = []
                 self.cameraLibs[item['deviceId']].append(item)
 
-    def getLibrary(self, library):
+    def processLibrary(self, library, deleteAfterDays):
+        deleteBefore = (today - datetime.date.fromtimestamp(0)).total_seconds() - (deleteAfterDays * 24 * 60 * 60)
+        deleteItems = []
+        
         itemCount = 0
         nItems = len(library)
         lastConcat = 0
@@ -213,6 +222,13 @@ class arlo_helper:
 
             if not args.debug and tag in saved:
                 print("We already have processed " +  todir + "/" + tofile + "! Skipping download.")
+
+                # If the video is too old, add it to the list to delete
+                # (this way, we'll only delete video we have previously deleted)
+                if self.getTimestampInSecs(item) < deleteBefore:
+                    print("Will delete " +  todir + "/" + tofile + " from arlo.netgear.com.")
+                    deleteItems.append(item)
+
             else:
 
                 # Should it be concatenated with the next video?
@@ -246,6 +262,12 @@ class arlo_helper:
             if itemCount % 25 == 0:
                 # Take a snapshot of what we have done so far, in case the script crashes...
                 pickle.dump(saved, open(dbname, "wb"))
+
+        if deleteItems:
+            response = self.session.post(self.libraryUrl + "/recycle",
+                                         json={'data':deleteItems},
+                                         headers=self.headers)
+
 
     def concatenate(self, videos):
         # Clean up the concatenation working directory...
@@ -307,8 +329,8 @@ class arlo_helper:
 thisHelper = arlo_helper()
 thisHelper.login()
 thisHelper.readLibrary()
-for camera in thisHelper.cameraLibs:
-    thisHelper.getLibrary(thisHelper.cameraLibs[camera])
+for camera, videos in thisHelper.cameraLibs.items():
+    thisHelper.processLibrary(videos, thisHelper.deleteAfterDays[camera])
 
 # Save everything we have done so far...
 pickle.dump(saved, open(dbname, "wb"))
