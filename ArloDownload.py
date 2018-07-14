@@ -224,7 +224,7 @@ class arlo_helper:
                 print("We already have processed " +  todir + "/" + tofile + "! Skipping download.")
 
                 # If the video is too old, add it to the list to delete
-                # (this way, we'll only delete video we have previously deleted)
+                # (this way, we'll only delete videos we have previously saved)
                 if self.getTimestampInSecs(item) < deleteBefore:
                     print("Will delete " +  todir + "/" + tofile + " from arlo.netgear.com.")
                     deleteItems.append(item)
