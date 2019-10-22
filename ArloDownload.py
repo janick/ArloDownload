@@ -121,7 +121,7 @@ class localBackend:
 class arlo_helper:
     def __init__(self):
         # Define your Arlo credentials.
-        self.loginData = {"email":config['arlo.netgear.com']['userid'], "password":config['arlo.netgear.com']['password']}
+        self.loginData = {"email":config['my.arlo.com']['userid'], "password":config['my.arlo.com']['password']}
         # Cleanup switch; this must be set to "True" in order to use the cleaner module.
         self.enableCleanup = False
         # All directories in format YYYYMMDD, e.g. 20150715, will be removed after x days.
@@ -148,10 +148,10 @@ class arlo_helper:
         self.localSave = localBackend()
                 
         # No customization of the following should be needed.
-        self.loginUrl = "https://arlo.netgear.com/hmsweb/login"
-        self.deviceUrl = "https://arlo.netgear.com/hmsweb/users/devices"
-        self.metadataUrl = "https://arlo.netgear.com/hmsweb/users/library/metadata"
-        self.libraryUrl = "https://arlo.netgear.com/hmsweb/users/library"
+        self.loginUrl = "https://my.arlo.com/hmsweb/login"
+        self.deviceUrl = "https://my.arlo.com/hmsweb/users/devices"
+        self.metadataUrl = "https://my.arlo.com/hmsweb/users/library/metadata"
+        self.libraryUrl = "https://my.arlo.com/hmsweb/users/library"
         self.headers = {'Content-type': 'application/json', 'Accept': 'text/plain, application/json'}
         self.session = requests.Session()
 
@@ -226,7 +226,7 @@ class arlo_helper:
                 # If the video is too old, add it to the list to delete
                 # (this way, we'll only delete videos we have previously saved)
                 if self.getTimestampInSecs(item) < deleteBefore:
-                    print("Will delete " +  todir + "/" + tofile + " from arlo.netgear.com.")
+                    print("Will delete " +  todir + "/" + tofile + " from my.arlo.com.")
                     deleteItems.append(item)
 
             else:
